@@ -19,6 +19,7 @@ class Tail:
         self.offset = 0
         self.identity: tuple[int, int] | None = None
         self.mtime_ns = 0
+        self.prefix: bytes | None = None
         self.reset = False
 
     def read(self, path: str) -> list[bytes]:
@@ -39,6 +40,12 @@ class Tail:
         self.mtime_ns = stat.st_mtime_ns
 
         with open(path, "rb") as handle:
+            prefix = handle.read(min(4096, stat.st_size))
+            if self.prefix is not None and prefix[: len(self.prefix)] != self.prefix:
+                self.reset = True
+                self.identity = identity
+                self.offset = 0
+            self.prefix = prefix
             handle.seek(self.offset)
             data = handle.read()
         end = data.rfind(b"\n")
@@ -52,6 +59,7 @@ class Tail:
         """Start reading at `offset`, discarding a partial line unless `offset` is a line boundary."""
         stat = os.stat(path)
         with open(path, "rb") as handle:
+            self.prefix = handle.read(min(4096, stat.st_size))
             if offset > 0:
                 handle.seek(offset - 1)
                 previous = handle.read(1)

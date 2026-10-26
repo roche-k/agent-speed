@@ -53,6 +53,16 @@ class TailTests(unittest.TestCase):
             self.assertEqual(tail.read(path), [b'{"c":3}'])
             self.assertTrue(tail.reset)
 
+    def test_rewrite_to_longer_resets(self):
+        with temp_dir() as directory:
+            path = os.path.join(directory, "a.jsonl")
+            write(path, b'{"a":1}\n')
+            tail = Tail()
+            tail.read(path)
+            write(path, b'{"b":2}\n{"c":3}\n{"d":4}\n')
+            self.assertEqual(tail.read(path), [b'{"b":2}', b'{"c":3}', b'{"d":4}'])
+            self.assertTrue(tail.reset)
+
     def test_start_at_skips_partial_first_line(self):
         with temp_dir() as directory:
             path = os.path.join(directory, "a.jsonl")
