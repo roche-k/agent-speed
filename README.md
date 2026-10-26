@@ -47,6 +47,16 @@ curl -fsSL https://raw.githubusercontent.com/zoefix/agent-speed/main/install.sh 
 Add `--purge` / `-Purge` to remove settings as well. On Windows you can also uninstall from *Settings → Apps*.
 </details>
 
+**Linux (terminal)** — from a checkout (Python 3.10+):
+
+```sh
+git clone https://github.com/zoefix/agent-speed.git
+cd agent-speed
+./linux/agentspeed
+```
+
+The Linux build is a live terminal table, not a GUI; see [linux/README.md](linux/README.md).
+
 ## What you get
 
 - **Floating orb** — a smoked-glass instrument with a 36-segment LED gauge. As speed climbs, so does its title — from *Walking* and *Bicycle* through *Bullet Train* and *Fighter Jet* to *Rocket* at the redline — while the gauge sweeps through the heat spectrum, a comet races around the ring, sparks fly, embers rise and every finished response sends out a shockwave. Beat your daily peak and it celebrates.
@@ -142,6 +152,7 @@ dotnet test windows/tests/AgentSpeed.Presentation.Tests
 spec/       measurement + design specification, shared fixtures, reference implementation
 macos/      Swift package: AgentSpeedCore (engine) and AgentSpeed (SwiftUI app)
 windows/    .NET solution: AgentSpeed.Core (engine), AgentSpeed.Presentation, AgentSpeed (WPF app)
+linux/      terminal CLI (Python, reuses spec/tools/reference.py)
 assets/     icon artwork
 install.sh  install.ps1
 ```
