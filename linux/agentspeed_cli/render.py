@@ -89,7 +89,7 @@ def _layout(width: int) -> list[_Column]:
     has_cost = width > 60
     has_today = width >= 50
     has_phase = width >= 44
-    source_w = 12 if width >= 72 else 10 if width >= 50 else 8
+    source_w = 14 if width >= 72 else 12 if width >= 50 else 8
     model_w = 20 if width >= 90 else 18
     keys = ["source", "agent"]
     if has_model:
@@ -255,7 +255,7 @@ def _source_lines(snapshot: Snapshot, width: int, ascii_only: bool, color: bool)
             lines.append(current.rstrip())
             current = " " * (len(label) + 2) + part
     lines.append(current.rstrip())
-    return [_paint(line, "2", color) for line in lines]
+    return [_paint(truncate(line, width, ascii_only), "2", color) for line in lines]
 
 
 def _quit_line(width: int, interval: float, warnings: tuple[str, ...], ascii_only: bool, color: bool) -> str:
@@ -286,14 +286,22 @@ def render(
         ]
     )
     lines = [_paint(truncate(header, width, ascii_only), "1", color)]
+    warnings = list(snapshot.warnings)
+    if snapshot.today_unpriced:
+        warnings.append(f"{snapshot.today_unpriced} unpriced requests")
+    quit_line = _quit_line(width, interval, tuple(warnings), ascii_only, color)
 
     if not snapshot.sources_available:
         lines.extend(
             [
                 "",
-                "No agent logs found. Start an agent or check the source paths with --help.",
+                truncate(
+                    "No agent logs found. Start an agent or check the source paths with --help.",
+                    width,
+                    ascii_only,
+                ),
                 "",
-                _quit_line(width, interval, snapshot.warnings, ascii_only, color),
+                quit_line,
             ]
         )
         return "\n".join(lines)
@@ -302,10 +310,10 @@ def render(
         lines.extend(
             [
                 "",
-                "No active agents in the last 10 minutes.",
+                truncate("No active agents in the last 10 minutes.", width, ascii_only),
                 "",
                 *_source_lines(snapshot, width, ascii_only, color),
-                _quit_line(width, interval, snapshot.warnings, ascii_only, color),
+                quit_line,
             ]
         )
         return "\n".join(lines)
@@ -320,7 +328,7 @@ def render(
             _table(columns, rows, color, ascii_only),
             "",
             *_source_lines(snapshot, width, ascii_only, color),
-            _quit_line(width, interval, snapshot.warnings, ascii_only, color),
+            quit_line,
         ]
     )
     return "\n".join(lines)

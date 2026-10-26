@@ -284,7 +284,10 @@ class LiveScanner:
         for mtime, path, source, root in self.files:
             if mtime * 1000 < cutoff:
                 continue
-            if source not in self.config.enabled_sources:
+            if source == "claudeCode":
+                if "claudeCode" not in self.config.enabled_sources and "claudeDesktop" not in self.config.enabled_sources:
+                    continue
+            elif source not in self.config.enabled_sources:
                 continue
             try:
                 self._ingest(path, source, root)
@@ -329,12 +332,18 @@ class LiveScanner:
         stat = os.stat(path)
         return (stat.st_size, stat.st_mtime_ns)
 
+    def _forget_owner(self, path: str) -> None:
+        owners = self.dedupe.owners
+        for key in [key for key, owner in owners.items() if owner == path]:
+            del owners[key]
+
     def _ingest(self, path: str, source: str, root: str | None) -> None:
         if source == "antigravity":
             self.scanned_files += 1
             signature = self._signature(path)
             if self.signatures.get(path) == signature:
                 return
+            self._forget_owner(path)
             try:
                 state = reference.antigravity_state(path, self.dedupe)
             except Exception:
@@ -352,11 +361,15 @@ class LiveScanner:
             signature = self._signature(path)
             if self.signatures.get(path) == signature:
                 return
+            self._forget_owner(path)
             state = reference.FileState(path, source, root)
             try:
                 reference.process_file(state, self.dedupe)
             except FileNotFoundError:
-                self.warnings.add("zstd not found: compressed logs skipped")
+                if not os.path.exists(path):
+                    self.warnings.add("some transcript files are unreadable")
+                else:
+                    self.warnings.add("zstd not found: compressed logs skipped")
                 return
             except OSError:
                 self.warnings.add("some transcript files are unreadable")
@@ -380,6 +393,7 @@ class LiveScanner:
         lines = tail.read(path)
         state = self.states.get(path)
         if state is None or tail.reset:
+            self._forget_owner(path)
             state = reference.FileState(path, source, root)
             self.states[path] = state
         if not lines:
@@ -454,6 +468,8 @@ class LiveScanner:
         responses: list[dict] = []
         agents: list[dict] = []
         for path, state in self.states.items():
+            if state.source not in self.config.enabled_sources:
+                continue
             for response in state.responses.values():
                 responses.append(dict(response, source=state.source, agentId=path))
             parent = state.parent_session if path.startswith("opencode:") else parents.get(path)

@@ -255,7 +255,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.once or not sys.stdout.isatty():
-        snapshot = scanner.scan()
+        try:
+            snapshot = scanner.scan()
+        except Exception as exc:
+            print(f"agentspeed: {exc}", file=sys.stderr)
+            return 1
         width = shutil.get_terminal_size((100, 24)).columns
         color = sys.stdout.isatty() and not args.no_color
         try:

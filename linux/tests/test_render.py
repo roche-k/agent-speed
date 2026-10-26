@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -64,6 +65,21 @@ def make_snapshot(*, project="app_trader_relay", warnings=()):
             parent_id=None,
             last_line_ms=1_793_000_000_000,
         ),
+        AgentRow(
+            id="claude-desktop",
+            source="claudeDesktop",
+            project="orbit",
+            model="claude-opus-5-5",
+            phase="idle",
+            live_output=0.0,
+            live_total=0.0,
+            today_output=12_345,
+            today_cost_micro=0,
+            today_unpriced=0,
+            is_subagent=False,
+            parent_id=None,
+            last_line_ms=1_793_000_000_000,
+        ),
     )
     sources = (
         SourceRow(
@@ -79,6 +95,14 @@ def make_snapshot(*, project="app_trader_relay", warnings=()):
             live_output=77.3,
             today_output=271_000,
             today_cost_micro=660_000,
+            today_unpriced=0,
+            active_agents=0,
+        ),
+        SourceRow(
+            source="claudeDesktop",
+            live_output=0.0,
+            today_output=12_345,
+            today_cost_micro=0,
             today_unpriced=0,
             active_agents=0,
         ),
@@ -162,6 +186,8 @@ class RenderTests(unittest.TestCase):
         self.assertIn("Agent Speed", text)
         self.assertIn("Codex", text)
         self.assertIn("OpenCode", text)
+        self.assertIn("Claude Desktop", text)
+        self.assertIn("│Claude Desktop", text)
         self.assertIn("34.8", text)
         self.assertIn("257.7k", text)
         self.assertIn("$12.41", text)
@@ -205,6 +231,21 @@ class RenderTests(unittest.TestCase):
         text = render(make_snapshot(), width=100, color=True)
         self.assertIn("\x1b[", text)
         self.assertIn("\x1b[0m", text)
+
+    def test_every_line_fits_at_30_columns(self):
+        snapshots = (
+            make_snapshot(),
+            empty_snapshot(sources_available=False),
+            empty_snapshot(sources_available=True),
+        )
+        for snapshot in snapshots:
+            text = render(snapshot, width=30, color=False)
+            for line in text.splitlines():
+                self.assertLessEqual(display_width(line), 30, line)
+
+    def test_unpriced_requests_are_shown(self):
+        text = render(replace(make_snapshot(), today_unpriced=2), width=100, color=False)
+        self.assertIn("2 unpriced requests", text)
 
 
 if __name__ == "__main__":

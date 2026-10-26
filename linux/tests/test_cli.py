@@ -5,14 +5,19 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stderr
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import agentspeed_cli
+import agentspeed_cli.cli as cli_module
 from agentspeed_cli.cli import TerminalSession
+from agentspeed_cli.model import ScanConfig
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CLI = REPO_ROOT / "linux" / "agentspeed"
@@ -150,6 +155,44 @@ class CliTests(unittest.TestCase):
         value = stream.getvalue()
         self.assertTrue(value.startswith("\x1b[?1049h\x1b[?25l"))
         self.assertTrue(value.endswith("\x1b[?25h\x1b[?1049l"))
+
+    def test_symlinked_entry_point(self):
+        with temp_dir() as directory:
+            link = os.path.join(directory, "agentspeed")
+            os.symlink(CLI, link)
+            environment = os.environ.copy()
+            environment.pop("PYTHONPATH", None)
+            result = subprocess.run(
+                [sys.executable, link, "--version"],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                env=environment,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("agentspeed", result.stdout)
+
+    def test_once_scan_failure_returns_one(self):
+        class FakeScanner:
+            def __init__(self, config, prices):
+                pass
+
+            def scan(self):
+                raise RuntimeError("boom")
+
+        fake = types.SimpleNamespace(
+            default_scan_config=lambda: ScanConfig(),
+            LiveScanner=FakeScanner,
+            reference=None,
+        )
+        stderr = io.StringIO()
+        with patch.dict(sys.modules, {"agentspeed_cli.snapshot": fake}):
+            with patch.object(agentspeed_cli, "snapshot", fake, create=True):
+                with redirect_stderr(stderr):
+                    code = cli_module.main(["--once"])
+        self.assertEqual(code, 1)
+        self.assertIn("boom", stderr.getvalue())
 
 
 if __name__ == "__main__":

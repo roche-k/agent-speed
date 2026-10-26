@@ -74,6 +74,34 @@ def write_lines(path, lines):
             handle.write(json.dumps(line) + "\n")
 
 
+def claude_lines(now, entrypoint, output=20):
+    return [
+        {
+            "type": "user",
+            "entrypoint": entrypoint,
+            "cwd": "/tmp/proj",
+            "sessionId": "s1",
+            "message": {"role": "user", "content": "hello"},
+            "timestamp": iso(now - 2000),
+        },
+        {
+            "type": "assistant",
+            "entrypoint": entrypoint,
+            "cwd": "/tmp/proj",
+            "sessionId": "s1",
+            "message": {
+                "id": "m1",
+                "role": "assistant",
+                "model": "claude-test",
+                "content": [{"type": "text", "text": "hi"}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 10, "output_tokens": output},
+            },
+            "timestamp": iso(now - 1000),
+        },
+    ]
+
+
 def append_lines(path, lines):
     with open(path, "a", encoding="utf-8") as handle:
         for line in lines:
@@ -116,7 +144,7 @@ class ScannerTests(unittest.TestCase):
             snap = scanner.scan(now + 1000)
             self.assertEqual(snap.today_output, 75)
 
-            write_lines(path, codex_lines(now + 2000, output=30, response_id="r3"))
+            write_lines(path, codex_lines(now + 2000, output=30, response_id="r1"))
             snap = scanner.scan(now + 2000)
             self.assertEqual(snap.today_output, 30)
 
@@ -158,6 +186,41 @@ class ScannerTests(unittest.TestCase):
             snap = scanner.scan(now)
             self.assertEqual(snap.today_output, 0)
             self.assertEqual(snap.agents, ())
+
+    def test_claude_desktop_and_cli_are_filtered_by_actual_source(self):
+        with temp_dir() as directory:
+            projects = os.path.join(directory, "projects")
+            os.makedirs(projects)
+            now = int(time.time() * 1000)
+            write_lines(
+                os.path.join(projects, "desktop.jsonl"),
+                claude_lines(now, "claude-desktop", output=20),
+            )
+
+            desktop = LiveScanner(
+                ScanConfig(claude_root=projects, enabled_sources=frozenset({"claudeDesktop"}))
+            )
+            snap = desktop.scan(now)
+            self.assertEqual(snap.today_output, 20)
+            self.assertEqual([agent.source for agent in snap.agents], ["claudeDesktop"])
+
+            code_only = LiveScanner(
+                ScanConfig(claude_root=projects, enabled_sources=frozenset({"claudeCode"}))
+            )
+            snap = code_only.scan(now)
+            self.assertEqual(snap.today_output, 0)
+            self.assertEqual(snap.agents, ())
+
+            write_lines(
+                os.path.join(projects, "cli.jsonl"),
+                claude_lines(now, "cli", output=30),
+            )
+            desktop_only = LiveScanner(
+                ScanConfig(claude_root=projects, enabled_sources=frozenset({"claudeDesktop"}))
+            )
+            snap = desktop_only.scan(now)
+            self.assertEqual(snap.today_output, 20)
+            self.assertEqual([agent.source for agent in snap.agents], ["claudeDesktop"])
 
 
 if __name__ == "__main__":
